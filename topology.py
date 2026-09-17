@@ -187,7 +187,7 @@ def representative_diagrams(
     signals, labels, subjects, subject: int, m: int, lag: int, normalize: bool = False
 ):
     """Return one persistence calculation per activity for one subject."""
-    from data_check import ACTIVITY_NAMES
+    from data_loader import ACTIVITY_NAMES
 
     diagrams = {}
     for activity in ACTIVITY_NAMES:

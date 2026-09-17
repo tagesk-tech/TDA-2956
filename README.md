@@ -14,17 +14,18 @@ The answer to the first four questions is **yes**, with an important qualificati
 
 | File | What happens there |
 |---|---|
+| `analysis.ipynb` | **Start here.** It owns the complete analysis order, mathematical explanation, experiment calls, plots, and conclusions. |
 | `data_loader.py` | Loads windows, labels, subject IDs, and the supplied 561 features. |
 | `embedding.py` | Builds separate $98\times9$ delay clouds and the synchronized $98\times18$ joint cloud. |
 | `topology.py` | Normalizes clouds and computes separate, Euclidean-joint, and max-coupled $H_0/H_1$ barcodes. |
 | `features.py` | Converts barcodes to stable ranks, diagram summaries, and circular phase features; also builds the ordinary baseline. |
-| `evaluation.py` | Runs nested subject-wise validation and evaluates the official test subjects. |
-| `run_analysis.py` | Defines the seven primary comparisons and saves their results. |
-| `run_robustness.py` | Changes the embedding, metric, and input noise on training subjects. |
-| `run_extensions.py` | Tests both coupled sensor metrics, broken sensor pairing, sensor/homology blocks, clustering, and the permutation null. |
-| `run_dynamics.py` | Computes the same 16 interpretable topology-and-phase features for all six activities and links them to the final classifier. |
+| `evaluation.py` | Contains reusable subject-wise validation, uncertainty, prototype, and comparison functions. |
+| `experiments.py` | Implements the four named experiment functions called directly at the relevant places in the notebook, including caching. |
+| `plotting.py` | Contains plotting functions only. |
+| `make_figures.py` | Exports the notebook's saved results as image files for the report; it performs no new analysis. |
+| `test_analysis.py` | Verifies the mathematical constructions and data contract. |
 
-`analysis.py` is only an F5 entry point for Neovim. `analysis.ipynb` is the executed, plotted walkthrough; it reads cached all-window features rather than duplicating the expensive persistence calculations.
+There are no independent `run_*.py` analyses. The notebook visibly calls `primary_analysis`, `robustness_analysis`, `extension_analysis`, and `dynamics_analysis` in the same order in which their results are explained. Set `RECOMPUTE=True` in the notebook to refit everything; leave it `False` to reuse verified results and expensive feature caches.
 
 ## Setup
 
@@ -40,14 +41,12 @@ The raw [UCI HAR dataset](https://archive.ics.uci.edu/dataset/240/human+activity
 
 ## Reproduce the analysis
 
-Run the scripts in this order:
+Run the tests and then execute the single analysis notebook:
 
 ```bash
 python -m unittest -v test_analysis.py
-python run_analysis.py
-python run_robustness.py
-python run_extensions.py
-python run_dynamics.py
+.venv/bin/jupyter nbconvert --to notebook --execute --inplace analysis.ipynb \
+  --ExecutePreprocessor.timeout=-1
 python make_figures.py
 cd report
 latexmk -pdf report.tex

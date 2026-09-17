@@ -17,8 +17,7 @@ from features import (
     stable_rank_l1,
 )
 from ripser import ripser
-from run_extensions import subject_activity_prototypes
-from run_robustness import _paired_subject_difference
+from evaluation import paired_subject_comparison, subject_activity_prototypes
 from topology import (
     make_coupled_distance_matrix,
     make_joint_point_cloud,
@@ -231,7 +230,7 @@ class AnalysisTests(unittest.TestCase):
         subjects = np.repeat((1, 2, 3), 6)
         first = labels.copy()
         second = np.roll(labels.reshape(3, 6), 1, axis=1).reshape(-1)
-        result = _paired_subject_difference(
+        result = paired_subject_comparison(
             first, second, labels, subjects, repeats=100
         )
         self.assertEqual(result["exact_two_sided_sign_flip_p"], 0.25)

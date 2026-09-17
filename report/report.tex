@@ -486,14 +486,12 @@ All computations use Python 3.13, NumPy 2.5.3, Ripser.py 0.6.15, StableBear 0.4.
 
 \begin{verbatim}
 python -m unittest -v test_analysis.py
-python run_analysis.py
-python run_robustness.py
-python run_extensions.py
-python run_dynamics.py
+jupyter nbconvert --to notebook --execute --inplace analysis.ipynb \
+  --ExecutePreprocessor.timeout=-1
 python make_figures.py
 \end{verbatim}
 
-The primary script caches feature matrices and records all predictions, model parameters, confusion matrices, and bootstrap intervals. The robustness script caches every alternative representation; the extension script records ablations, joint and desynchronized representations, prototype predictions, the clustering distance matrix, and every null score. The dynamics script caches the 16 all-activity features, cocycle-frequency validation, nested models, and paired subject comparisons. The notebook reads these verified outputs and reproduces the mathematical narrative without repeating the expensive persistence computation.
+The notebook is the single analysis entry point. In the order presented, it calls four named functions from \texttt{experiments.py}: the primary comparison, robustness checks, coupling and ablation extensions, and circular-coordinate dynamics. Those functions contain reusable caching and repeated computation, while the notebook exposes every experiment call and interprets its output. Setting \texttt{RECOMPUTE=True} refits every model and refreshes the saved JSON results; the default reuses verified results and expensive feature caches. \texttt{make\_figures.py} only exports the already analysed results as report images.
 
 \clearpage
 \section{Conclusion}

@@ -5,7 +5,7 @@ import numpy as np
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.spatial.distance import squareform
 
-from data_check import ACTIVITY_NAMES
+from data_loader import ACTIVITY_NAMES
 
 
 def plot_time_series(window, title: str) -> None:
