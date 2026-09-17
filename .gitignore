@@ -3,10 +3,12 @@
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+.jupyter-local/
 
 # Downloaded data and regenerated model/feature caches
 data/
 artifacts/
+output/
 *.zip
 
 # LaTeX build files (keep report/report.pdf)
