@@ -20,13 +20,13 @@ across subjects, and where it loses information.
 
 ## 2. Data and unit of analysis
 
-For sensor type \(s\in\{a,g\}\), one observation is a sampled path
+For sensor type $s\in\{a,g\}$, one observation is a sampled path
 
-\[
+$$
 x^{(s)}:\{0,\ldots,127\}\longrightarrow\mathbb R^3,
-\]
+$$
 
-where \(a\) denotes body acceleration, \(g\) denotes body angular velocity,
+where $a$ denotes body acceleration, $g$ denotes body angular velocity,
 and the sampling frequency is 50 Hz. Each path is therefore a 2.56-second
 window with one activity label and one subject identifier.
 
@@ -43,56 +43,56 @@ unequal. Macro F1 is reported as a secondary score.
 
 ### 3.1 Delay coordinates
 
-For embedding dimension \(m\) and lag \(\ell\), define
+For embedding dimension $m$ and lag $\ell$, define
 
-\[
+$$
 E_{m,\ell}(x)_t=
 \bigl(x_t,x_{t+\ell},\ldots,x_{t+(m-1)\ell}\bigr)
 \in\mathbb R^{3m},
-\]
+$$
 
 for
 
-\[
+$$
 t=0,\ldots,127-(m-1)\ell.
-\]
+$$
 
 The resulting finite point cloud is
 
-\[
+$$
 X_{m,\ell}(x)=
 \{E_{m,\ell}(x)_t\mid 0\leq t\leq127-(m-1)\ell\}.
-\]
+$$
 
-The primary values are \(m=3\) and \(\ell=15\). They produce 98 points in
-\(\mathbb R^9\). The lag is justified by the first non-positive value of the
+The primary values are $m=3$ and $\ell=15$. They produce 98 points in
+$\mathbb R^9$. The lag is justified by the first non-positive value of the
 mean normalized acceleration autocorrelation on the development data. It is
 not tuned against classification accuracy.
 
-The instantaneous control uses \(m=1,\ell=1\), giving the unordered 128 sensor
-samples in \(\mathbb R^3\).
+The instantaneous control uses $m=1,\ell=1$, giving the unordered 128 sensor
+samples in $\mathbb R^3$.
 
 ### 3.2 Translation and scale normalization
 
-For a cloud \(X=\{z_1,\ldots,z_n\}\), define its centroid and RMS radius by
+For a cloud $X=\{z_1,\ldots,z_n\}$, define its centroid and RMS radius by
 
-\[
+$$
 \bar z=\frac1n\sum_{i=1}^n z_i,
 \qquad
 r(X)=\left(\frac1n\sum_{i=1}^n\lVert z_i-\bar z\rVert_2^2\right)^{1/2}.
-\]
+$$
 
 The normalized cloud is
 
-\[
+$$
 \widetilde X=\left\{
 \frac{z_i-\bar z}{r(X)}:i=1,\ldots,n
 \right\}.
-\]
+$$
 
 This makes the primary topology invariant to translation and positive global
 rescaling of a window. The discarded radii
-\(r(X^{(a)})\) and \(r(X^{(g)})\) are retained as two explicit physical-scale
+$r(X^{(a)})$ and $r(X^{(g)})$ are retained as two explicit physical-scale
 features in one comparison. They are never silently mixed into the normalized
 topological vector.
 
@@ -100,67 +100,67 @@ The metric on each normalized cloud is Euclidean distance.
 
 ## 4. Vietoris-Rips persistence
 
-For a finite metric space \((X,d)\) and threshold \(\epsilon\geq0\), the
+For a finite metric space $(X,d)$ and threshold $\epsilon\geq0$, the
 Vietoris-Rips complex is
 
-\[
+$$
 \operatorname{VR}_\epsilon(X)=
 \{\sigma\subseteq X:\ d(x,y)\leq\epsilon
 \text{ for every }x,y\in\sigma\}.
-\]
+$$
 
-Because \(X\) is finite, this filtration is tame. Apply homology over
-\(\mathbb F_{47}\) to obtain persistence diagrams
+Because $X$ is finite, this filtration is tame. Apply homology over
+$\mathbb F_{47}$ to obtain persistence diagrams
 
-\[
+$$
 D_0(X),\qquad D_1(X).
-\]
+$$
 
-Here \(H_0\) records the merging of connected components and \(H_1\) records
+Here $H_0$ records the merging of connected components and $H_1$ records
 loops. `ripser` performs this calculation. The coefficient field is fixed to
 47 because the circular extension requires a sufficiently fine finite-field
 cocycle; using the same field lets one persistence call supply both the stable
-ranks and circular dynamics. Infinite \(H_0\) classes are removed before
+ranks and circular dynamics. Infinite $H_0$ classes are removed before
 vectorization.
 
 ## 5. Stable-rank representation
 
-For a finite persistence diagram \(D_k\), define the lifetime stable rank
+For a finite persistence diagram $D_k$, define the lifetime stable rank
 
-\[
+$$
 \rho_k(u)=
 \#\{(b,d)\in D_k:d-b>u\},\qquad u\geq0.
-\]
+$$
 
 Evaluate it on the fixed grid
 
-\[
+$$
 u_j=\frac{2j}{63},\qquad j=0,\ldots,63.
-\]
+$$
 
 `stablebear` evaluates the stable-rank function. For one window, concatenate
 
-\[
+$$
 \Phi_{\mathrm{SR}}(x)=
 [\rho^{(a)}_0(u_j),\rho^{(a)}_1(u_j),
   \rho^{(g)}_0(u_j),\rho^{(g)}_1(u_j)]_{j=0}^{63}
 \in\mathbb R^{256}.
-\]
+$$
 
 The block order is fixed and tested:
 
-1. acceleration \(H_0\);
-2. acceleration \(H_1\);
-3. gyroscope \(H_0\);
-4. gyroscope \(H_1\).
+1. acceleration $H_0$;
+2. acceleration $H_1$;
+3. gyroscope $H_0$;
+4. gyroscope $H_1$.
 
 The numerical stable-rank distance used for activity prototypes is the
 left-Riemann approximation
 
-\[
+$$
 d_{\mathrm{SR}}(f,g)=
 \frac{2}{63}\sum_{j=0}^{62}|f(u_j)-g(u_j)|.
-\]
+$$
 
 For concatenated sensor/homology blocks, this integral is computed separately
 for every 64-coordinate block and then summed. This avoids accidentally
@@ -169,14 +169,14 @@ dropping only one endpoint from the entire 256-vector.
 ## 6. Temporal-order control
 
 For each window independently, draw a deterministic permutation
-\(\pi\) from seed \(2956+i\), where \(i\) is the window index, and form
+$\pi$ from seed $2956+i$, where $i$ is the window index, and form
 
-\[
+$$
 x^\pi_t=x_{\pi(t)}.
-\]
+$$
 
-Apply the same \((m,\ell)=(3,15)\) delay construction and persistence pipeline
-to \(x^\pi\). This preserves the multiset of three-dimensional samples while
+Apply the same $(m,\ell)=(3,15)$ delay construction and persistence pipeline
+to $x^\pi$. This preserves the multiset of three-dimensional samples while
 destroying temporal adjacency. A performance decrease from delay topology to
 shuffled-delay topology supports a temporal interpretation. It does not prove
 that the representation recovers the complete time ordering.
@@ -187,7 +187,7 @@ Stable rank retains lifetime counts but discards individual birth values and
 the identity of a particular loop. The extension therefore summarizes each
 sensor diagram by six transparent quantities:
 
-\[
+$$
 \begin{aligned}
 q_1 &= \text{mean finite }H_0\text{ lifetime},\\
 q_2 &= \text{maximum finite }H_0\text{ lifetime},\\
@@ -196,53 +196,53 @@ q_4 &= \max_{(b,d)\in D_1}(d-b),\\
 q_5 &= \sum_{(b,d)\in D_1}(d-b),\\
 q_6 &= \text{birth of the longest }H_1\text{ class}.
 \end{aligned}
-\]
+$$
 
-If \(D_1\neq\varnothing\), select the longest class \((b^*,d^*)\) and the
-corresponding cocycle returned by `ripser` over \(\mathbb F_{47}\). Evaluate
+If $D_1\neq\varnothing$, select the longest class $(b^*,d^*)$ and the
+corresponding cocycle returned by `ripser` over $\mathbb F_{47}$. Evaluate
 the cocycle on the Rips graph at
 
-\[
+$$
 \epsilon^*=b^*+\tfrac12(d^*-b^*).
-\]
+$$
 
-Lift its coefficients to centered integers and let \(B\) be the oriented
+Lift its coefficients to centered integers and let $B$ be the oriented
 edge-vertex incidence matrix. Anchor the first vertex and solve
 
-\[
+$$
 \widehat\phi=
 \arg\min_{\phi:\phi_0=0}\lVert B\phi+\alpha\rVert_2^2
-\]
+$$
 
 with SciPy's sparse `lsqr`. The circle-valued coordinate is
 
-\[
+$$
 \theta_i=\widehat\phi_i\bmod1.
-\]
+$$
 
-After unwrapping \(2\pi\theta_i\) in the original delay-point order, regress it
-on time \(t_i=i/50\). Record
+After unwrapping $2\pi\theta_i$ in the original delay-point order, regress it
+on time $t_i=i/50$. Record
 
-\[
+$$
 q_7=|\widehat\beta_1|/(2\pi)
-\]
+$$
 
 as circular frequency in hertz and
 
-\[
+$$
 q_8=1-
 \frac{\sum_i(\varphi_i-\widehat\varphi_i)^2}
      {\sum_i(\varphi_i-\bar\varphi)^2}
-\]
+$$
 
-as phase linearity. If no finite \(H_1\) class exists, set \(q_3,\ldots,q_8\)
+as phase linearity. If no finite $H_1$ class exists, set $q_3,\ldots,q_8$
 consistently to zero where undefined.
 
 Concatenating the eight quantities for acceleration and gyroscope gives
 
-\[
+$$
 \Phi_{\mathrm{dyn}}(x)\in\mathbb R^{16}.
-\]
+$$
 
 This extension is evaluated separately. It is not concatenated with every
 other representation merely to create more experiments.
@@ -251,8 +251,8 @@ other representation merely to create more experiments.
 
 The complete classification comparison contains exactly these feature sets:
 
-1. **Instantaneous TDA:** stable ranks from \(m=1,\ell=1\).
-2. **Delay TDA:** stable ranks from \(m=3,\ell=15\).
+1. **Instantaneous TDA:** stable ranks from $m=1,\ell=1$.
+2. **Delay TDA:** stable ranks from $m=3,\ell=15$.
 3. **Shuffled-delay TDA:** the temporal-order control.
 4. **Delay TDA + scale:** the 256 stable-rank coordinates plus two RMS radii.
 5. **Topological dynamics:** the compact 16-dimensional extension.
@@ -262,12 +262,12 @@ non-topological reference baseline, not as part of the main TDA claim.
 
 Every representation uses the same fixed model:
 
-\[
+$$
 \operatorname{StandardScaler}
 \longrightarrow
 \operatorname{RBF\ SVM}(C=10,\gamma=0.001,
 \text{class-weight=balanced}).
-\]
+$$
 
 These parameters are frozen from the earlier development analysis. There is no
 nested hyperparameter search in the rewrite and no representation-specific
@@ -280,15 +280,15 @@ and evaluated once on the official disjoint test subjects.
 
 ## 9. Structural analysis without another classifier
 
-For every development subject \(p\) and activity \(c\), compute the prototype
+For every development subject $p$ and activity $c$, compute the prototype
 
-\[
+$$
 \mu_{p,c}=\frac{1}{N_{p,c}}
 \sum_{i:\,p_i=p,\,y_i=c}\Phi_{\mathrm{SR}}(x_i).
-\]
+$$
 
-Report the \(6\times6\) matrix whose \((c,c')\) entry is the mean
-\(d_{\mathrm{SR}}(\mu_{p,c},\mu_{q,c'})\) over distinct subjects. This asks
+Report the $6\times6$ matrix whose $(c,c')$ entry is the mean
+$d_{\mathrm{SR}}(\mu_{p,c},\mu_{q,c'})$ over distinct subjects. This asks
 whether activity structure is visible across people without fitting another
 predictive model.
 

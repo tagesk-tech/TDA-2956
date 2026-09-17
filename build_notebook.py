@@ -60,11 +60,11 @@ print("Subjects are disjoint:", set(subjects).isdisjoint(test_subjects))
     markdown(r"""
 ## 1. One observation is a sampled path
 
-For sensor (s\in\{a,g\}), one observation is
+For sensor $s\in\{a,g\}$, one observation is
 
-\[
+$$
 x^{(s)}:\{0,\ldots,127\}\to\mathbb R^3.
-\]
+$$
 
 The 128 samples are recorded at 50 Hz, so each labelled window lasts 2.56
 seconds. The official split separates people, not merely windows.
@@ -84,15 +84,15 @@ fig.tight_layout()
     markdown(r"""
 ## 2. Delay coordinates create the finite metric space
 
-For embedding dimension (m) and lag (\ell),
+For embedding dimension $m$ and lag $\ell$,
 
-\[
+$$
 E_{m,\ell}(x)_t=(x_t,x_{t+\ell},\ldots,x_{t+(m-1)\ell})
 \in\mathbb R^{3m}.
-\]
+$$
 
-We use (m=3) and (\ell=15), producing 98 points in
-(\mathbb R^9). The lag is the first non-positive mean acceleration
+We use $m=3$ and $\ell=15$, producing 98 points in
+$\mathbb R^9$. The lag is the first non-positive mean acceleration
 autocorrelation; it is not selected by classification performance.
 """),
     code("""
@@ -109,13 +109,13 @@ plt.tight_layout()
 print("Chosen lag:", chosen_lag)
 """),
     markdown(r"""
-For a delay cloud (X=\{z_i\}_{i=1}^n), define
+For a delay cloud $X=\{z_i\}_{i=1}^n$, define
 
-\[
+$$
 r(X)=\left(\frac1n\sum_i\lVert z_i-\bar z\rVert_2^2\right)^{1/2},
 \qquad
 \widetilde X=\left\{\frac{z_i-\bar z}{r(X)}\right\}.
-\]
+$$
 
 This removes translation and global amplitude from the primary topology. The
 two discarded sensor radii are retained for one explicit scale comparison.
@@ -135,25 +135,25 @@ print("Cloud shape:", cloud.shape, "raw RMS radius:", round(radius, 4))
     markdown(r"""
 ## 3. Vietoris-Rips persistence and stable ranks
 
-For the normalized finite metric space ((X,d)),
+For the normalized finite metric space $(X,d)$,
 
-\[
+$$
 \operatorname{VR}_\epsilon(X)=
 \{\sigma\subseteq X:d(x,y)\leq\epsilon\text{ for every }x,y\in\sigma\}.
-\]
+$$
 
-We compute (H_0) and (H_1) persistence over (\mathbb F_{47}). The field
+We compute $H_0$ and $H_1$ persistence over $\mathbb F_{47}$. The field
 is shared with the circular cocycle extension, allowing one persistence pass
 to produce both representations.
 
-For finite diagram (D_k), the lifetime stable rank is
+For finite diagram $D_k$, the lifetime stable rank is
 
-\[
+$$
 \rho_k(u)=\#\{(b,d)\in D_k:d-b>u\}.
-\]
+$$
 
-It is evaluated at 64 fixed thresholds on ([0,2]). Each window has four
-blocks: acceleration (H_0,H_1), then gyroscope (H_0,H_1).
+It is evaluated at 64 fixed thresholds on $[0,2]$. Each window has four
+blocks: acceleration $(H_0,H_1)$, then gyroscope $(H_0,H_1)$.
 """),
     code("""
 diagram = ripser(cloud, maxdim=1, coeff=47)["dgms"]
@@ -186,10 +186,10 @@ fig.tight_layout()
 
 The classifier is deliberately fixed for every representation:
 
-\[
+$$
 \operatorname{StandardScaler}\to
 \operatorname{RBF\ SVM}(C=10,\gamma=0.001).
-\]
+$$
 
 Development estimates use five stratified subject-grouped folds. The official
 test contains nine entirely different subjects. There is no hyperparameter
@@ -230,13 +230,13 @@ rewrite:
     markdown(r"""
 ## 5. Cross-subject activity geometry
 
-For subject (p) and activity (c), let
+For subject $p$ and activity $c$, let
 
-\[
+$$
 \mu_{p,c}=\frac1{N_{p,c}}\sum_{i:p_i=p,y_i=c}\Phi_{\mathrm{SR}}(x_i).
-\]
+$$
 
-The matrix below averages blockwise stable-rank (L^1) distances between
+The matrix below averages blockwise stable-rank $L^1$ distances between
 subject-activity prototypes. It describes structure without fitting another
 classifier.
 """),
@@ -253,22 +253,22 @@ plt.tight_layout()
     markdown(r"""
 ## 6. Persistent loops as circular motion coordinates
 
-For the longest (H_1) bar ((b^*,d^*)), use its Ripser cocycle on the Rips
+For the longest $H_1$ bar $(b^*,d^*)$, use its Ripser cocycle on the Rips
 graph at
 
-\[
+$$
 \epsilon^*=b^*+\tfrac12(d^*-b^*).
-\]
+$$
 
-After lifting the cocycle (\alpha), anchor one vertex and solve
+After lifting the cocycle $\alpha$, anchor one vertex and solve
 
-\[
+$$
 \widehat\phi=\arg\min_{\phi:\phi_0=0}\lVert B\phi+\alpha\rVert_2^2,
 \qquad \theta_i=\widehat\phi_i\bmod1.
-\]
+$$
 
-The slope of unwrapped (2\pi\theta_i) gives circular frequency; regression
-(R^2) gives phase linearity. Together with six direct diagram summaries per
+The slope of unwrapped $2\pi\theta_i$ gives circular frequency; regression
+$R^2$ gives phase linearity. Together with six direct diagram summaries per
 sensor this produces a compact 16-dimensional representation.
 """),
     code("""
