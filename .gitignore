@@ -4,12 +4,24 @@ __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
 .jupyter-local/
+.matplotlib-cache/
 
 # Downloaded data and regenerated model/feature caches
 data/
 artifacts/
-output/
+output/*
+!output/pdf/
+output/pdf/*
+!output/pdf/report.pdf
 *.zip
+
+# LaTeX intermediates
+report/*.aux
+report/*.fdb_latexmk
+report/*.fls
+report/*.log
+report/*.out
+report/*.synctex.gz
 
 # LaTeX build files (keep report/report.pdf)
 report/*.aux

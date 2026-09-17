@@ -41,3 +41,16 @@ pass `--recompute` to force feature extraction. No fitted model is serialized.
 
 The generated notebook presents the tested pipeline in the same mathematical
 order. It does not contain a second implementation of the analysis.
+
+## Report
+
+After the full analysis has created `output/results.json` and its caches:
+
+```bash
+.venv/bin/python report/make_report_figures.py
+cd report
+latexmk -pdf -interaction=nonstopmode -halt-on-error \
+  -output-directory=../output/pdf report.tex
+```
+
+The final PDF is `output/pdf/report.pdf`.
