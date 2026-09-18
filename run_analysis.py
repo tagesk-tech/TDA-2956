@@ -11,17 +11,23 @@ from data import (
     load_engineered_features,
     load_split,
 )
-from evaluate import activity_distance_matrix, evaluate_feature_set
+from evaluate import (
+    activity_distance_matrix,
+    evaluate_development_feature_set,
+    evaluate_feature_set,
+)
 from tda import (
     GRID,
     feature_matrices,
     first_nonpositive_lag,
     mean_autocorrelation,
+    joint_feature_matrices,
     stable_rank_distance,
 )
 
 
 SEED = 2956
+JOINT_WEIGHTS = np.linspace(0.0, 1.0, 11)
 OUTPUT = Path(__file__).parent / "output"
 
 
@@ -56,6 +62,23 @@ def _finite_arrays(values):
     return all(np.isfinite(array).all() for array in values.values())
 
 
+def _search_joint_weights(name, weights, joint_ranks, labels, subjects, base=None):
+    scores = []
+    for weight, ranks in zip(weights, joint_ranks):
+        print(f"Evaluating {name} acceleration weight {weight:.1f}", flush=True)
+        features = ranks if base is None else np.column_stack((base, ranks))
+        scores.append({
+            "acceleration_weight": float(weight),
+            "gyroscope_weight": float(1.0 - weight),
+            **evaluate_development_feature_set(features, labels, subjects),
+        })
+    index = max(range(len(scores)), key=lambda i: (
+        scores[i]["balanced_accuracy"],
+        -abs(scores[i]["acceleration_weight"] - 0.5),
+    ))
+    return scores, index
+
+
 def run(smoke=False, recompute=False):
     train, train_labels, train_subjects = load_split("train")
     test, test_labels, test_subjects = load_split("test")
@@ -88,9 +111,50 @@ def run(smoke=False, recompute=False):
         prefix + "shuffled_m3_lag15_seed2956_f47", train, test, recompute,
         m=3, lag=15, shuffle_seed=SEED,
     )
-    for values in (delay, instantaneous, shuffled):
+
+    def compute_joint_train():
+        middle_ranks, scales = joint_feature_matrices(
+            train, JOINT_WEIGHTS[1:-1], m=3, lag=15, progress=True
+        )
+        all_ranks = np.empty((len(JOINT_WEIGHTS), len(train_labels), 2 * len(GRID)))
+        all_ranks[0] = delay["train_ranks"][:, 2 * len(GRID):]
+        all_ranks[-1] = delay["train_ranks"][:, :2 * len(GRID)]
+        all_ranks[1:-1] = middle_ranks
+        return {"weights": JOINT_WEIGHTS, "train_ranks": all_ranks, "train_scales": scales}
+
+    joint_train = _cache(
+        OUTPUT / "cache" / f"{prefix}joint_train_m3_lag15_weights_step0p1_f47.npz",
+        compute_joint_train,
+        recompute,
+    )
+    for values in (delay, instantaneous, shuffled, joint_train):
         if not _finite_arrays(values):
             raise RuntimeError("feature extraction produced a non-finite value")
+
+    weight_search, selected_index = _search_joint_weights(
+        "joint", joint_train["weights"], joint_train["train_ranks"],
+        train_labels, train_subjects,
+    )
+    hybrid_search, hybrid_index = _search_joint_weights(
+        "hybrid", joint_train["weights"], joint_train["train_ranks"],
+        train_labels, train_subjects, base=delay["train_ranks"],
+    )
+    selected_weight = weight_search[selected_index]["acceleration_weight"]
+    hybrid_weight = hybrid_search[hybrid_index]["acceleration_weight"]
+    print(f"Selected acceleration weights: joint={selected_weight:.1f}, hybrid={hybrid_weight:.1f}", flush=True)
+
+    def joint_test(weight):
+        def compute():
+            ranks, scales = joint_feature_matrices(
+                test, [weight], m=3, lag=15, progress=True
+            )
+            return {"test_ranks": ranks[0], "test_scales": scales}
+        label = f"{weight:.1f}".replace(".", "p")
+        path = OUTPUT / "cache" / f"{prefix}joint_test_m3_lag15_accweight{label}_f47.npz"
+        return _cache(path, compute, recompute)
+
+    joint_test_values = joint_test(selected_weight)
+    hybrid_test_values = joint_test(hybrid_weight)
 
     if smoke:
         uci_train = load_engineered_features("train")[train_index]
@@ -103,6 +167,18 @@ def run(smoke=False, recompute=False):
         "Instantaneous TDA": (
             instantaneous["train_ranks"], instantaneous["test_ranks"]),
         "Delay TDA": (delay["train_ranks"], delay["test_ranks"]),
+        "Joint-sensor TDA": (
+            joint_train["train_ranks"][selected_index],
+            joint_test_values["test_ranks"],
+        ),
+        "Hybrid TDA": (
+            np.column_stack((delay["train_ranks"], joint_train["train_ranks"][hybrid_index])),
+            np.column_stack((delay["test_ranks"], hybrid_test_values["test_ranks"])),
+        ),
+        "Hybrid TDA + scale": (
+            np.column_stack((delay["train_ranks"], joint_train["train_ranks"][hybrid_index], delay["train_scales"])),
+            np.column_stack((delay["test_ranks"], hybrid_test_values["test_ranks"], delay["test_scales"])),
+        ),
         "Shuffled-delay TDA": (
             shuffled["train_ranks"], shuffled["test_ranks"]),
         "Delay TDA + scale": (
@@ -154,6 +230,18 @@ def run(smoke=False, recompute=False):
             "test_subjects": np.unique(test_subjects).tolist(),
         },
         "models": scores,
+        "joint_sensor_weight_search": {
+            "selection_data": "subject-grouped development folds only",
+            "selected_acceleration_weight": selected_weight,
+            "selected_gyroscope_weight": 1.0 - selected_weight,
+            "grid": weight_search,
+        },
+        "hybrid_sensor_weight_search": {
+            "selection_data": "subject-grouped development folds only",
+            "selected_acceleration_weight": hybrid_weight,
+            "selected_gyroscope_weight": 1.0 - hybrid_weight,
+            "grid": hybrid_search,
+        },
         "activity_distance_matrix": distances.tolist(),
         "noise_5_percent": {
             "sample_size": int(len(displacement)),

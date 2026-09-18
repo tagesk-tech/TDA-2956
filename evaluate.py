@@ -34,6 +34,15 @@ def metrics(labels, predictions):
     }
 
 
+def evaluate_development_feature_set(features, labels, subjects):
+    """Five-fold subject-grouped development predictions and metrics."""
+    folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=SEED)
+    predictions = cross_val_predict(
+        model(), features, labels, groups=subjects, cv=folds, n_jobs=1,
+    )
+    return metrics(labels, predictions)
+
+
 def evaluate_feature_set(
     train_features,
     train_labels,
@@ -42,15 +51,13 @@ def evaluate_feature_set(
     test_labels,
 ):
     """Grouped development predictions and one official test evaluation."""
-    folds = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=SEED)
-    cv_predictions = cross_val_predict(
-        model(), train_features, train_labels,
-        groups=train_subjects, cv=folds, n_jobs=1,
+    development = evaluate_development_feature_set(
+        train_features, train_labels, train_subjects
     )
     fitted = model().fit(train_features, train_labels)
     test_predictions = fitted.predict(test_features)
     return {
-        "development": metrics(train_labels, cv_predictions),
+        "development": development,
         "official_test": metrics(test_labels, test_predictions),
         "test_confusion_matrix": confusion_matrix(
             test_labels, test_predictions, labels=sorted(ACTIVITIES), normalize="true"

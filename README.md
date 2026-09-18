@@ -11,7 +11,8 @@ ordinary Python pipeline must work completely before a notebook is generated.
 - `data.py` downloads and loads the UCI HAR data.
 - `tda.py` implements only the topological feature map.
 - `evaluate.py` contains one fixed subject-grouped evaluation protocol.
-- `run_analysis.py` explicitly runs the five comparisons.
+- `run_analysis.py` explicitly runs the representation comparisons and the
+  development-only joint-sensor weight analysis.
 - `test_math.py` tests the mathematical construction on synthetic and real data.
 - `build_notebook.py` generates the explanatory notebook only after the tested
   analysis has completed.

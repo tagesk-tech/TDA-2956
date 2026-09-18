@@ -12,6 +12,8 @@ from tda import (
     _phase_features,
     delay_cloud,
     feature_matrices,
+    joint_delay_cloud,
+    joint_feature_matrices,
     normalize_cloud,
     stable_rank,
     stable_rank_distance,
@@ -43,6 +45,28 @@ class MathematicalTests(unittest.TestCase):
         np.testing.assert_allclose(first, second)
         np.testing.assert_allclose(first.mean(axis=0), 0, atol=1e-12)
         self.assertAlmostEqual(np.sqrt(np.mean(np.sum(first**2, axis=1))), 1)
+
+    def test_equal_weight_joint_cloud_uses_both_sensor_distances(self):
+        cloud, radii = joint_delay_cloud(
+            self.sensors["body_acc"][0], self.sensors["body_gyro"][0], 0.5
+        )
+        acceleration, _ = normalize_cloud(delay_cloud(self.sensors["body_acc"][0]))
+        gyroscope, _ = normalize_cloud(delay_cloud(self.sensors["body_gyro"][0]))
+        expected = np.sqrt(
+            0.5 * np.sum((acceleration[0] - acceleration[1]) ** 2)
+            + 0.5 * np.sum((gyroscope[0] - gyroscope[1]) ** 2)
+        )
+        self.assertEqual(cloud.shape, (98, 18))
+        self.assertEqual(radii.shape, (2,))
+        self.assertAlmostEqual(np.linalg.norm(cloud[0] - cloud[1]), expected)
+
+    def test_joint_feature_shapes_and_endpoints(self):
+        joint, scales = joint_feature_matrices(self.sensors, [0.0, 0.5, 1.0])
+        separate, _, _ = feature_matrices(self.sensors)
+        self.assertEqual(joint.shape, (3, 12, 128))
+        self.assertEqual(scales.shape, (12, 2))
+        np.testing.assert_allclose(joint[0], separate[:, 128:])
+        np.testing.assert_allclose(joint[2], separate[:, :128])
 
     def test_stable_rank_counts_lifetimes(self):
         diagram = np.asarray(((0.0, 0.5), (0.2, 1.2), (0.0, np.inf)))

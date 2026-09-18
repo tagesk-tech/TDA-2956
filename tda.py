@@ -52,6 +52,23 @@ def normalize_cloud(cloud):
     return centered / radius, radius
 
 
+def joint_delay_cloud(acceleration_window, gyroscope_window,
+                      acceleration_weight=0.5, m=3, lag=15):
+    """Join separately normalized, synchronized sensor delay clouds."""
+    weight = float(acceleration_weight)
+    if not 0.0 <= weight <= 1.0:
+        raise ValueError("acceleration_weight must lie between 0 and 1")
+    acceleration, acceleration_radius = normalize_cloud(
+        delay_cloud(acceleration_window, m=m, lag=lag)
+    )
+    gyroscope, gyroscope_radius = normalize_cloud(
+        delay_cloud(gyroscope_window, m=m, lag=lag)
+    )
+    cloud = np.column_stack((np.sqrt(weight) * acceleration,
+                             np.sqrt(1.0 - weight) * gyroscope))
+    return cloud, np.asarray((acceleration_radius, gyroscope_radius))
+
+
 def mean_autocorrelation(windows, max_lag=40):
     """Mean normalized autocorrelation over windows and sensor axes."""
     centered = windows - windows.mean(axis=1, keepdims=True)
@@ -228,3 +245,38 @@ def feature_matrices(
             if progress and (index + 1) % 500 == 0:
                 print(f"{sensor}: {index + 1}/{n}", flush=True)
     return ranks, scales, dynamics
+
+
+def joint_feature_matrices(sensor_data, acceleration_weights, m=3, lag=15,
+                           *, progress=False):
+    """Stable ranks of weighted joint acceleration-gyroscope delay clouds."""
+    weights = np.atleast_1d(np.asarray(acceleration_weights, dtype=float))
+    if weights.ndim != 1 or len(weights) == 0:
+        raise ValueError("acceleration_weights must be a non-empty vector")
+    if np.any((weights < 0.0) | (weights > 1.0)):
+        raise ValueError("acceleration weights must lie between 0 and 1")
+
+    n = len(sensor_data["body_acc"])
+    if len(sensor_data["body_gyro"]) != n:
+        raise ValueError("sensor arrays must contain the same number of windows")
+    ranks = np.empty((len(weights), n, 2 * len(GRID)))
+    scales = np.empty((n, 2))
+
+    paired = zip(sensor_data["body_acc"], sensor_data["body_gyro"])
+    for index, (acceleration, gyroscope) in enumerate(paired):
+        for weight_index, weight in enumerate(weights):
+            cloud, radii = joint_delay_cloud(
+                acceleration, gyroscope, weight, m=m, lag=lag
+            )
+            if weight_index == 0:
+                scales[index] = radii
+            result = ripser(cloud, maxdim=1, coeff=47)
+            ranks[weight_index, index, :len(GRID)] = stable_rank(
+                result["dgms"][0]
+            )
+            ranks[weight_index, index, len(GRID):] = stable_rank(
+                result["dgms"][1]
+            )
+        if progress and (index + 1) % 500 == 0:
+            print(f"joint sensors: {index + 1}/{n}", flush=True)
+    return ranks, scales

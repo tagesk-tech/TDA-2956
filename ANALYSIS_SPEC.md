@@ -247,15 +247,34 @@ $$
 This extension is evaluated separately. It is not concatenated with every
 other representation merely to create more experiments.
 
-## 8. Five representations and no hidden search
+## 8. Representations and explicit sensor-weight analyses
 
-The complete classification comparison contains exactly these feature sets:
+The classification comparison contains these feature sets:
 
 1. **Instantaneous TDA:** stable ranks from $m=1,\ell=1$.
 2. **Delay TDA:** stable ranks from $m=3,\ell=15$.
 3. **Shuffled-delay TDA:** the temporal-order control.
 4. **Delay TDA + scale:** the 256 stable-rank coordinates plus two RMS radii.
 5. **Topological dynamics:** the compact 16-dimensional extension.
+6. **Joint-sensor TDA:** one weighted metric on synchronized, separately
+   normalized acceleration and gyroscope delay clouds. For acceleration weight
+   $w$, concatenate $\sqrt{w}\,\widetilde X^{(a)}$ and
+   $\sqrt{1-w}\,\widetilde X^{(g)}$. This gives
+   $d_w^2=w d_a^2+(1-w)d_g^2$ and a 128-dimensional joint $H_0,H_1$
+   stable-rank vector.
+7. **Hybrid TDA:** concatenate the original 256 separate-sensor stable ranks
+   with the 128 joint-sensor stable ranks, giving
+   $[\Phi_{\mathrm{SR}},\Phi_{\mathrm{joint}}^{(w)}]\in\mathbb R^{384}$.
+8. **Hybrid TDA + scale:** append the acceleration and gyroscope RMS radii to
+   the selected hybrid vector, giving 386 coordinates. The hybrid weight is not
+   reselected after adding scale.
+
+For joint-sensor TDA only, evaluate $w=0,0.1,\ldots,1$ using the same grouped
+development folds. Select the highest development balanced accuracy, breaking
+exact ties toward $w=0.5$, and evaluate only that selected weight on the
+official test set. Apply the same development-only weight selection separately
+to the hybrid representation. Both weight curves and selection rules are
+reported explicitly; the official test labels do not influence either choice.
 
 The supplied 561-dimensional UCI feature vector is reported once as a
 non-topological reference baseline, not as part of the main TDA claim.
@@ -314,8 +333,8 @@ The implementation must remain small:
 - `data.py`: download and load the supplied UCI HAR data;
 - `tda.py`: delay clouds, persistence, stable ranks, circular coordinates;
 - `evaluate.py`: the single subject-grouped evaluation protocol;
-- `run_analysis.py`: explicitly compute the five representations and save
-  numerical results;
+- `run_analysis.py`: explicitly compute the representations, select the joint
+  sensor weight on grouped development folds, and save numerical results;
 - `test_math.py`: focused mathematical and data-contract tests;
 - `build_notebook.py`: created only after all preceding code runs successfully.
 
