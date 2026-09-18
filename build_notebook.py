@@ -70,6 +70,7 @@ cache = ROOT / "output/cache"
 delay = np.load(cache / "delay_m3_lag15_f47.npz")
 instantaneous = np.load(cache / "instantaneous_m1_lag1_f47.npz")
 shuffled = np.load(cache / "shuffled_m3_lag15_seed2956_f47.npz")
+joint_train = np.load(cache / "joint_train_m3_lag15_weights_step0p1_f47.npz")
 train, labels, subjects = load_split("train")
 test, test_labels, test_subjects = load_split("test")
 
@@ -249,6 +250,25 @@ $$
 \rho_k(u)=\#\{(b,d)\in D_k:d-b>u\}.
 $$
 
+For one window, $\rho_k(u)$ answers: **how many topological features in this
+window live longer than $u$?** At small $u$, short-lived detail is included; as
+$u$ increases, only more persistent structure remains. For $H_0$ these are
+connected components that remain separated, while for $H_1$ they are loops
+that remain unfilled.
+
+To describe a whole activity $c$, average the individual-window curves:
+
+$$
+\overline\rho_{c,k}^{(s)}(u)=
+\frac{1}{N_c}\sum_{i:y_i=c}\rho_{i,k}^{(s)}(u),
+\qquad s\in\{a,g\}.
+$$
+
+Thus $\overline\rho_{c,k}^{(s)}(u)$ is the average number of sensor-$s$
+features of dimension $k$ whose lifetime exceeds $u$ in activity $c$. These
+mean curves are descriptive summaries. The classifier does **not** receive an
+activity mean; it receives each window's own sampled stable-rank values.
+
 It is evaluated at 64 fixed thresholds on $[0,2]$. Keeping the two sensor
 topologies separate gives
 
@@ -284,7 +304,18 @@ for block, (axis, title) in enumerate(zip(axes.flat, titles)):
     axis.set_ylabel("Mean stable rank")
     axis.set_xlabel("Lifetime threshold")
 axes[0, 0].legend(fontsize=7)
+fig.suptitle("Mean individual-window stable ranks by activity")
 fig.tight_layout()
+"""),
+    markdown(r"""
+**How to read these curves.** If an activity's curve has height 12 at
+$u=0.4$, its windows contain, on average, 12 features whose persistence
+lifetime exceeds 0.4. A curve farther to the right therefore indicates
+structure that survives to larger distance scales. The separate-sensor plots
+show, for example, that walking upstairs merges earlier in acceleration
+$H_0$, while walking downstairs remains separated longer in gyroscope $H_0$.
+The substantial overlap also explains why stable ranks are informative but do
+not perfectly separate all six activities.
 """),
     markdown(r"""
 ### 3.2 Joint-sensor persistence
@@ -504,7 +535,57 @@ print(
 )
 """),
     markdown(r"""
-### 4.4 Final subject-independent comparison
+### 4.4 Interpret the selected joint block with mean stable ranks
+
+The selected hybrid weight is $w=0.4$, so its appended block uses 40%
+acceleration distance and 60% gyroscope distance. For activity $c$, its joint
+mean stable rank is
+
+$$
+\overline\rho_{c,k}^{\mathrm{joint}}(u;\widehat w)=
+\frac{1}{N_c}\sum_{i:y_i=c}
+\rho_{i,k}^{\mathrm{joint}}(u;\widehat w).
+$$
+
+The curves below show the typical connected-component and loop persistence of
+the joint motion geometry for each activity. As above, these means explain the
+representation; classification still uses every window's individual
+128-dimensional joint block.
+"""),
+    code("""
+selected_joint_position = np.flatnonzero(
+    np.isclose(joint_train["weights"], selected_hybrid_weight)
+)[0]
+selected_joint_ranks = joint_train["train_ranks"][selected_joint_position]
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharex=True)
+for dimension, axis in enumerate(axes):
+    block = selected_joint_ranks[
+        :, dimension * len(GRID):(dimension + 1) * len(GRID)
+    ]
+    for activity, name in ACTIVITIES.items():
+        axis.plot(GRID, block[labels == activity].mean(axis=0), label=name)
+    axis.set_title(f"Joint H{dimension} mean stable rank")
+    axis.set_xlabel("Lifetime threshold u")
+    axis.set_ylabel("Mean number of surviving features")
+axes[0].legend(fontsize=7)
+fig.suptitle(
+    f"Selected joint block: acceleration {selected_hybrid_weight:.1f}, "
+    f"gyro {1 - selected_hybrid_weight:.1f}"
+)
+fig.tight_layout()
+"""),
+    markdown(r"""
+**What the joint means show.** Walking upstairs has the earliest-decaying
+joint $H_0$ curve, so its joint cloud typically connects at smaller distance
+scales. Walking downstairs has the largest joint $H_1$ curve over the useful
+range, indicating more or longer-lived loops in the synchronized motion
+geometry. Static activities generally have smaller $H_1$ curves. The curves
+still overlap, so the joint block is useful as additional information rather
+than as a complete classifier by itself.
+"""),
+    markdown(r"""
+### 4.5 Final subject-independent comparison
 
 The table below summarizes exactly what enters the same fixed classifier.
 
