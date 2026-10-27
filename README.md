@@ -1,12 +1,24 @@
-# SF2956 presentation notebook
+# SF2956 human activity analysis
 
-Open the already executed notebook with:
+The numerical results are produced by `run_analysis.py`. The notebook presents
+the same analysis and reads the saved arrays from `output/`.
 
 ```bash
+.venv/bin/python run_analysis.py
 ./run_jupyter.sh
 ```
 
-`analysis.ipynb` contains the presentation code, figures, and saved outputs.
-Use **Run All** only when you want to refresh the figures. The notebook reads
-the saved numerical results in `output/` and the sensor windows in
-`data/har_sensor_windows.npz`; it does not rerun the original full analysis.
+The first command reuses saved topological features and reruns model fitting,
+weight selection, evaluation, and `output/results.json`. To calculate every
+persistence diagram again from the UCI HAR sensor windows, run:
+
+```bash
+.venv/bin/python run_analysis.py --recompute
+```
+
+The UCI HAR dataset is downloaded from the UCI Machine Learning Repository if
+it is not already in `data/`. A smaller end-to-end check is available with:
+
+```bash
+.venv/bin/python run_analysis.py --smoke --recompute
+```

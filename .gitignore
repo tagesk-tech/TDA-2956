@@ -4,3 +4,7 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+data/UCI HAR Dataset/
+data/*.zip
+output/cache/smoke_*
+output/smoke_results.json
