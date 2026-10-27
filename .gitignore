@@ -1,37 +1,6 @@
-# Python environments and caches
 .venv/
+.jupyter-local/
+.ipynb_checkpoints/
 __pycache__/
 *.py[cod]
-.ipynb_checkpoints/
-.jupyter-local/
-.matplotlib-cache/
-
-# Downloaded data and regenerated model/feature caches
-data/
-artifacts/
-output/*
-!output/pdf/
-output/pdf/*
-!output/pdf/report.pdf
-*.zip
-
-# LaTeX intermediates
-report/*.aux
-report/*.fdb_latexmk
-report/*.fls
-report/*.log
-report/*.out
-report/*.synctex.gz
-
-# LaTeX build files (keep report/report.pdf)
-report/*.aux
-report/*.fdb_latexmk
-report/*.fls
-report/*.log
-report/*.out
-report/*.synctex.gz
-
-# Editor and operating-system files
 .DS_Store
-*.swp
-*.swo
