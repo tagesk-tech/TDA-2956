@@ -1,7 +1,6 @@
 numpy==2.5.3
 matplotlib==3.11.2
 ripser==0.6.15
-stablebear==0.4.3
 jupyterlab==4.6.3
 ipykernel==7.3.0
 scikit-learn==1.9.1

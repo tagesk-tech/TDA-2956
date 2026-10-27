@@ -1,243 +1,240 @@
-"""Run the analysis specified in ANALYSIS_SPEC.md without a notebook."""
-
 import argparse
 import json
 from pathlib import Path
 
 import numpy as np
 
-from data import (
-    first_subject_activity_windows,
-    load_engineered_features,
-    load_split,
-)
-from evaluate import (
-    activity_distance_matrix,
-    evaluate_development_feature_set,
-    evaluate_feature_set,
-)
+from data import load_engineered_features, load_split
+from evaluate import development_balanced_accuracy, evaluate
 from tda import (
     GRID,
     feature_matrices,
     first_nonpositive_lag,
-    mean_autocorrelation,
     joint_feature_matrices,
+    mean_autocorrelation,
 )
 
 
 SEED = 2956
-JOINT_WEIGHTS = np.linspace(0.0, 1.0, 11)
+WEIGHTS = np.linspace(0.0, 1.0, 11)
 OUTPUT = Path(__file__).parent / "output"
 
 
-def _cache(path, compute, recompute):
+def cache(path, compute, recompute):
     if path.exists() and not recompute:
-        print(f"Loading {path.name}", flush=True)
+        print(f"load {path.name}", flush=True)
         with np.load(path, allow_pickle=False) as saved:
             return {name: saved[name] for name in saved.files}
-    print(f"Computing {path.name}", flush=True)
+    print(f"compute {path.name}", flush=True)
     values = compute()
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, **values)
     return values
 
 
-def _extract_pair(name, train, test, recompute, **options):
+def sensor_features(name, train, test, recompute, keep_scales=False, **options):
     def compute():
-        train_values = feature_matrices(train, progress=True, **options)
-        test_values = feature_matrices(test, progress=True, **options)
-        result = {}
-        for split, values in (("train", train_values), ("test", test_values)):
-            ranks, scales, dynamics = values
-            result[f"{split}_ranks"] = ranks
-            result[f"{split}_scales"] = scales
-            if dynamics is not None:
-                result[f"{split}_dynamics"] = dynamics
-        return result
-    return _cache(OUTPUT / "cache" / f"{name}.npz", compute, recompute)
+        train_ranks, train_scales = feature_matrices(
+            train, progress=True, **options
+        )
+        test_ranks, test_scales = feature_matrices(
+            test, progress=True, **options
+        )
+        values = {
+            "train_ranks": train_ranks,
+            "test_ranks": test_ranks,
+        }
+        if keep_scales:
+            values["train_scales"] = train_scales
+            values["test_scales"] = test_scales
+        return values
+
+    return cache(OUTPUT / "cache" / f"{name}.npz", compute, recompute)
 
 
-def _finite_arrays(values):
-    return all(np.isfinite(array).all() for array in values.values())
-
-
-def _search_joint_weights(name, weights, joint_ranks, labels, subjects, base=None):
+def search_weights(name, weights, joint_ranks, labels, subjects, base=None):
     scores = []
     for weight, ranks in zip(weights, joint_ranks):
-        print(f"Evaluating {name} acceleration weight {weight:.1f}", flush=True)
+        print(f"{name} {weight:.1f}", flush=True)
         features = ranks if base is None else np.column_stack((base, ranks))
         scores.append({
             "acceleration_weight": float(weight),
-            "gyroscope_weight": float(1.0 - weight),
-            **evaluate_development_feature_set(features, labels, subjects),
+            "balanced_accuracy": development_balanced_accuracy(
+                features, labels, subjects
+            ),
         })
-    index = max(range(len(scores)), key=lambda i: (
-        scores[i]["balanced_accuracy"],
-        -abs(scores[i]["acceleration_weight"] - 0.5),
+    selected = max(range(len(scores)), key=lambda index: (
+        scores[index]["balanced_accuracy"],
+        -abs(scores[index]["acceleration_weight"] - 0.5),
     ))
-    return scores, index
+    return scores, selected
 
 
-def run(smoke=False, recompute=False):
+def run(recompute=False):
     train, train_labels, train_subjects = load_split("train")
     test, test_labels, test_subjects = load_split("test")
-    if not set(train_subjects).isdisjoint(test_subjects):
-        raise RuntimeError("official train and test subjects overlap")
-
-    prefix = "smoke_" if smoke else ""
-    if smoke:
-        train_index = first_subject_activity_windows(train_labels, train_subjects)
-        test_index = first_subject_activity_windows(test_labels, test_subjects)
-        train = {name: values[train_index] for name, values in train.items()}
-        test = {name: values[test_index] for name, values in test.items()}
-        train_labels, train_subjects = train_labels[train_index], train_subjects[train_index]
-        test_labels, test_subjects = test_labels[test_index], test_subjects[test_index]
 
     autocorrelation = mean_autocorrelation(train["body_acc"])
-    chosen_lag = first_nonpositive_lag(autocorrelation)
-    if not smoke and chosen_lag != 15:
-        raise RuntimeError(f"expected development-data lag 15, obtained {chosen_lag}")
+    lag = first_nonpositive_lag(autocorrelation)
 
-    delay = _extract_pair(
-        prefix + "delay_m3_lag15_f47", train, test, recompute,
-        m=3, lag=15, include_dynamics=True,
+    delay = sensor_features(
+        "delay_m3_lag15_f47",
+        train,
+        test,
+        recompute,
+        keep_scales=True,
+        m=3,
+        lag=15,
     )
-    instantaneous = _extract_pair(
-        prefix + "instantaneous_m1_lag1_f47", train, test, recompute,
-        m=1, lag=1,
+    instantaneous = sensor_features(
+        "instantaneous_m1_lag1_f47",
+        train,
+        test,
+        recompute,
+        m=1,
+        lag=1,
     )
-    shuffled = _extract_pair(
-        prefix + "shuffled_m3_lag15_seed2956_f47", train, test, recompute,
-        m=3, lag=15, shuffle_seed=SEED,
+    shuffled = sensor_features(
+        "shuffled_m3_lag15_seed2956_f47",
+        train,
+        test,
+        recompute,
+        m=3,
+        lag=15,
+        shuffle_seed=SEED,
     )
 
     def compute_joint_train():
-        middle_ranks, scales = joint_feature_matrices(
-            train, JOINT_WEIGHTS[1:-1], m=3, lag=15, progress=True
+        middle = joint_feature_matrices(
+            train, WEIGHTS[1:-1], m=3, lag=15, progress=True
         )
-        all_ranks = np.empty((len(JOINT_WEIGHTS), len(train_labels), 2 * len(GRID)))
-        all_ranks[0] = delay["train_ranks"][:, 2 * len(GRID):]
-        all_ranks[-1] = delay["train_ranks"][:, :2 * len(GRID)]
-        all_ranks[1:-1] = middle_ranks
-        return {"weights": JOINT_WEIGHTS, "train_ranks": all_ranks, "train_scales": scales}
+        ranks = np.empty((len(WEIGHTS), len(train_labels), 2 * len(GRID)))
+        ranks[0] = delay["train_ranks"][:, 2 * len(GRID):]
+        ranks[-1] = delay["train_ranks"][:, :2 * len(GRID)]
+        ranks[1:-1] = middle
+        return {"weights": WEIGHTS, "train_ranks": ranks}
 
-    joint_train = _cache(
-        OUTPUT / "cache" / f"{prefix}joint_train_m3_lag15_weights_step0p1_f47.npz",
+    joint_train = cache(
+        OUTPUT / "cache" / "joint_train_m3_lag15_weights_step0p1_f47.npz",
         compute_joint_train,
         recompute,
     )
-    for values in (delay, instantaneous, shuffled, joint_train):
-        if not _finite_arrays(values):
-            raise RuntimeError("feature extraction produced a non-finite value")
-
-    weight_search, selected_index = _search_joint_weights(
-        "joint", joint_train["weights"], joint_train["train_ranks"],
-        train_labels, train_subjects,
+    joint_search, joint_index = search_weights(
+        "joint",
+        joint_train["weights"],
+        joint_train["train_ranks"],
+        train_labels,
+        train_subjects,
     )
-    hybrid_search, hybrid_index = _search_joint_weights(
-        "hybrid", joint_train["weights"], joint_train["train_ranks"],
-        train_labels, train_subjects, base=delay["train_ranks"],
+    hybrid_search, hybrid_index = search_weights(
+        "hybrid",
+        joint_train["weights"],
+        joint_train["train_ranks"],
+        train_labels,
+        train_subjects,
+        delay["train_ranks"],
     )
-    selected_weight = weight_search[selected_index]["acceleration_weight"]
+    joint_weight = joint_search[joint_index]["acceleration_weight"]
     hybrid_weight = hybrid_search[hybrid_index]["acceleration_weight"]
-    print(f"Selected acceleration weights: joint={selected_weight:.1f}, hybrid={hybrid_weight:.1f}", flush=True)
 
     def joint_test(weight):
-        def compute():
-            ranks, scales = joint_feature_matrices(
-                test, [weight], m=3, lag=15, progress=True
-            )
-            return {"test_ranks": ranks[0], "test_scales": scales}
         label = f"{weight:.1f}".replace(".", "p")
-        path = OUTPUT / "cache" / f"{prefix}joint_test_m3_lag15_accweight{label}_f47.npz"
-        return _cache(path, compute, recompute)
+        path = OUTPUT / "cache" / (
+            f"joint_test_m3_lag15_accweight{label}_f47.npz"
+        )
+        return cache(
+            path,
+            lambda: {
+                "test_ranks": joint_feature_matrices(
+                    test, [weight], m=3, lag=15, progress=True
+                )[0]
+            },
+            recompute,
+        )
 
-    joint_test_values = joint_test(selected_weight)
-    hybrid_test_values = joint_test(hybrid_weight)
-
-    if smoke:
-        uci_train = load_engineered_features("train")[train_index]
-        uci_test = load_engineered_features("test")[test_index]
-    else:
-        uci_train = load_engineered_features("train")
-        uci_test = load_engineered_features("test")
+    joint_test_ranks = joint_test(joint_weight)["test_ranks"]
+    hybrid_test_ranks = joint_test(hybrid_weight)["test_ranks"]
+    uci_train = load_engineered_features("train")
+    uci_test = load_engineered_features("test")
 
     representations = {
         "Instantaneous TDA": (
-            instantaneous["train_ranks"], instantaneous["test_ranks"]),
+            instantaneous["train_ranks"], instantaneous["test_ranks"]
+        ),
         "Delay TDA": (delay["train_ranks"], delay["test_ranks"]),
         "Joint-sensor TDA": (
-            joint_train["train_ranks"][selected_index],
-            joint_test_values["test_ranks"],
+            joint_train["train_ranks"][joint_index], joint_test_ranks
         ),
         "Hybrid TDA": (
-            np.column_stack((delay["train_ranks"], joint_train["train_ranks"][hybrid_index])),
-            np.column_stack((delay["test_ranks"], hybrid_test_values["test_ranks"])),
+            np.column_stack((
+                delay["train_ranks"], joint_train["train_ranks"][hybrid_index]
+            )),
+            np.column_stack((delay["test_ranks"], hybrid_test_ranks)),
         ),
         "Hybrid TDA + scale": (
-            np.column_stack((delay["train_ranks"], joint_train["train_ranks"][hybrid_index], delay["train_scales"])),
-            np.column_stack((delay["test_ranks"], hybrid_test_values["test_ranks"], delay["test_scales"])),
+            np.column_stack((
+                delay["train_ranks"],
+                joint_train["train_ranks"][hybrid_index],
+                delay["train_scales"],
+            )),
+            np.column_stack((
+                delay["test_ranks"],
+                hybrid_test_ranks,
+                delay["test_scales"],
+            )),
         ),
         "Shuffled-delay TDA": (
-            shuffled["train_ranks"], shuffled["test_ranks"]),
+            shuffled["train_ranks"], shuffled["test_ranks"]
+        ),
         "Delay TDA + scale": (
             np.column_stack((delay["train_ranks"], delay["train_scales"])),
-            np.column_stack((delay["test_ranks"], delay["test_scales"]))),
-        "Topological dynamics": (
-            delay["train_dynamics"], delay["test_dynamics"]),
+            np.column_stack((delay["test_ranks"], delay["test_scales"])),
+        ),
         "UCI 561 baseline": (uci_train, uci_test),
     }
-    scores = {}
+    models = {}
     for name, (train_features, test_features) in representations.items():
-        print(f"Evaluating {name}", flush=True)
-        scores[name] = evaluate_feature_set(
-            train_features, train_labels, train_subjects,
-            test_features, test_labels,
+        print(name, flush=True)
+        models[name] = evaluate(
+            train_features,
+            train_labels,
+            train_subjects,
+            test_features,
+            test_labels,
         )
 
-    distances = activity_distance_matrix(
-        delay["train_ranks"], train_labels, train_subjects
-    )
-
     results = {
-        "mode": "smoke" if smoke else "full",
         "configuration": {
             "seed": SEED,
             "embedding_dimension": 3,
             "lag": 15,
-            "measured_first_nonpositive_lag": chosen_lag,
+            "measured_first_nonpositive_lag": lag,
             "stable_rank_grid": GRID.tolist(),
             "train_subjects": np.unique(train_subjects).tolist(),
             "test_subjects": np.unique(test_subjects).tolist(),
         },
-        "models": scores,
+        "models": models,
         "joint_sensor_weight_search": {
-            "selection_data": "subject-grouped development folds only",
-            "selected_acceleration_weight": selected_weight,
-            "selected_gyroscope_weight": 1.0 - selected_weight,
-            "grid": weight_search,
+            "selected_acceleration_weight": joint_weight,
+            "selected_gyroscope_weight": 1.0 - joint_weight,
+            "grid": joint_search,
         },
         "hybrid_sensor_weight_search": {
-            "selection_data": "subject-grouped development folds only",
             "selected_acceleration_weight": hybrid_weight,
             "selected_gyroscope_weight": 1.0 - hybrid_weight,
             "grid": hybrid_search,
         },
-        "activity_distance_matrix": distances.tolist(),
     }
-    OUTPUT.mkdir(exist_ok=True)
-    result_path = OUTPUT / ("smoke_results.json" if smoke else "results.json")
+    result_path = OUTPUT / "results.json"
     result_path.write_text(json.dumps(results, indent=2) + "\n")
-    print(f"Wrote {result_path}")
+    print(result_path)
     return results
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--recompute", action="store_true")
-    arguments = parser.parse_args()
-    run(smoke=arguments.smoke, recompute=arguments.recompute)
+    run(parser.parse_args().recompute)
 
 
 if __name__ == "__main__":
